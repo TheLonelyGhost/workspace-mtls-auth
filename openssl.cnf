@@ -1,0 +1,210 @@
+######################## NOTE ########################
+#                                                    #
+# There are 3 main areas in this config file:        #
+#                                                    #
+#   1. BASE section (immediately below)              #
+#   2. reserved, command-specific sections           #
+#   3. free-form, referenced sections                #
+#                                                    #
+# Immediately below we have the top-most section,    #
+# with values that will be inherited (or observed)   #
+# by all other sections. In this we may specify      #
+# environment variables, internally-referenced       #
+# variables, and default values that can be          #
+# overridden in the respective section. Since this   #
+# config file is for learning, we will only put the  #
+# bare minimum in this section for our scripting to  #
+# work.                                              #
+#                                                    #
+# In area 2 we have the sections named specifically  #
+# after the `openssl` subcommand (e.g., `req`) which #
+# are observed automatically when said subcommand is #
+# invoked.                                           #
+#                                                    #
+# The final area is a free-for-all of named sections #
+# which are either referenced from the `openssl` CLI #
+# invocation (e.g., `-name My_SECTION_name_here`),   #
+# or they are referenced by another section by name. #
+# If it is a reference from another section, it is   #
+# prudent that we follow the convention already laid #
+# out: {SECTION}_{my_naming_here}                    #
+#                                                    #
+# One example is `REQ_distinguished_name_template`,  #
+# which functions as a section referenced in         #
+# relation to the `req` command (and thus the `req`  #
+# section), so we prefix it with an all-caps `REQ`.  #
+# The remainder of the name shall indicate some sort #
+# of semantic label to indicate what its intended    #
+# value is.                                          #
+#                                                    #
+# If the section in this free-form area is only      #
+# referred to by CLI invocation, then we can name it #
+# however we want. Just make sure it is entirely     #
+# lowercase and words joined with underscores.       #
+#                                                    #
+####################### /NOTE ########################
+
+# This is only because openssl complains that there is
+# no fallback value for `${ENV::CERT_BASEDIR}`
+CERT_BASEDIR = ./certs
+dir = $ENV::CERT_BASEDIR
+
+############ COMMAND-SPECIFIC SECTIONS ############
+
+# Note: all of the sections in this comment block
+#   have reserved names for the related `openssl`
+#   subcommand to which they pertain.
+
+[ ca ]
+default_ca = CA_intermediate
+
+[ req ]
+# options for the `openssl-req` tool (`man openssl-req.1ssl`)
+default_bits = 4096
+distinguished_name = REQ_leaf_template_dn
+string_mask = utf8only
+
+# SHA-1 is deprecated, so use SHA-2 instead
+default_md = sha256
+
+[ ocsp ]
+# Extensions for OCSP signing certificates (`man ocsp`)
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
+basicConstraints = CA:false
+keyUsage = critical, digitalSignature
+extendedKeyUsage = critical, OCSPSigning
+
+########### /COMMAND-SPECIFIC SECTIONS ############
+
+############ FREE-FORM SECTIONS ############
+
+[ CA_root ]
+certs = $dir/certs
+crl_dir = $dir/root-crl
+new_certs_dir = $dir/root-issued-certs
+database = $dir/root-index
+serial = $dir/root-serial
+
+# The root key and root certificate.
+private_key = $dir/private/root.key.pem
+certificate = $dir/certs/root.cert.pem
+
+# For certificate revocation lists.
+crlnumber = $dir/root-crlnumber
+crl = $dir/crl/root.crl.pem
+crl_extensions = crl_ext
+default_crl_days = 30
+
+default_md = sha256
+name_opt = ca_default
+cert_opt = ca_default
+default_days = 9999
+preserve = no
+policy = policy_strict
+
+[ CA_intermediate ]
+certs = $dir/certs
+crl_dir = $dir/int-crl
+new_certs_dir = $dir/int-issued-certs
+database = $dir/int-index
+serial = $dir/int-serial
+
+# The root key and root certificate.
+private_key = $dir/private/intermediate.key.pem
+certificate = $dir/certs/intermediate.cert.pem
+
+# For certificate revocation lists.
+crlnumber = $dir/int-crlnumber
+crl = $dir/crl/intermediate.crl.pem
+crl_extensions = crl_ext
+default_crl_days = 30
+
+# SHA-1 is deprecated, so use SHA-2 instead
+default_md = sha256
+
+name_opt = ca_default
+cert_opt = ca_default
+default_days = 365
+preserve = no
+policy = policy_loose
+
+[ REQ_leaf_template_dn ]
+# See "DISTINGUISHED NAME" section of `man openssl-req.1ssl`
+
+# Defaults
+countryName_default = US
+stateOrProvinceName_default = Denial
+localityName_default = Neverland
+organizationName_default = Contoso
+commonName_default = My certificate here
+# organizationalUnitName_default = My Team
+emailAddress_default = my-team@example.com
+
+#### CA policies ####
+[ policy_strict ]
+# The root CA should only sign intermediate certificates that match.
+# See the POLICY FORMAT section of `man openssl-ca.1ssl`
+countryName = match
+stateOrProvinceName = match
+localityName = optional
+organizationName = match
+organizationalUnitName = optional
+commonName = supplied
+emailAddress = optional
+
+[ policy_loose ]
+# Allow the intermediate CA to sign a more diverse range of certificates
+# See the POLICY FORMAT section of `man openssl-ca.1ssl`
+countryName = optional
+stateOrProvinceName = optional
+localityName = optional
+organizationName = optional
+organizationalUnitName = optional
+commonName = supplied
+emailAddress = optional
+
+#### /CA policies ####
+
+#### x509 config templates ####
+[ v3_root_ca ]
+# Extensions for a typical root CA (`man x509v3_config.5ssl`)
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer
+basicConstraints = critical, CA:true, pathlen:1
+keyUsage = critical, cRLSign, keyCertSign
+
+[ v3_intermediate_ca ]
+# Extensions for a typical intermediate CA (`man x509v3_config`)
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer
+basicConstraints = critical, CA:true, pathlen:0
+keyUsage = critical, cRLSign, keyCertSign
+
+[ usr_cert ]
+# Extensions for client certificates (`man x509v3_config`)
+nsCertType = client
+nsComment = "Client certificate for demonstration and experimentation purposes only. See https://github.com/thelonelyghost/workspace-mtls-auth"
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
+basicConstraints = CA:false
+keyUsage = critical, nonRepudiation, digitalSignature, keyEncipherment
+extendedKeyUsage = clientAuth
+
+[ server_cert ]
+# Extensions for server certificates (`man x509v3_config`)
+nsCertType = server
+nsComment = "Server certificate for demonstration and experimentation purposes only. See https://github.com/thelonelyghost/workspace-mtls-auth"
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer:always
+basicConstraints = CA:false
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+
+#### x509 config templates ####
+
+[ crl_ext ]
+# Extensions for CRLs (`man x509v3_config`)
+authorityKeyIdentifier = keyid:always
+
+########### /FREE-FORM SECTIONS ############
